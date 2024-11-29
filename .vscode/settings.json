@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "stm32f4xx_hal.h": "c",
+        "times.h": "c",
+        "freertos.h": "c",
+        "task.h": "c",
+        "destroshell.h": "c",
+        "main.h": "c",
+        "string.h": "c",
+        "queue.h": "c"
+    }
+}

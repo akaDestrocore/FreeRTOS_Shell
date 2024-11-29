@@ -1,0 +1,29 @@
+# ---> VisualStudioCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
+
+# TEST
+TEST/
+
+# FreeRTOS
+Third_Party/FreeRTOS/*
+!Third_Party/FreeRTOS/LICENSE.md
+
+# SEGGER
+Third_Party/SEGGER/
+Third_Party/SEGGER/SEGGER/*
+!Third_Party/SEGGER/SEGGER/SEGGER_RTT_ASM_ARMv7M.S
+
+
+# build
+build/
