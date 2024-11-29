@@ -3,8 +3,6 @@
 #include <stdio.h>
 
 /* Private variables ----------------------------------------------------------*/
-static ShellCommand_t shellCommands[SHELL_MAX_COMMANDS];
-static uint8_t commandCount = 0;
 static Shell_Handle_t *globalShellHandle = NULL;
 
 /**
@@ -65,33 +63,34 @@ void Shell_Task(void *pvParameters)
         {
             if (0 == strlen(receivedCommand)) 
             {
+                sh_print(handle, (const char*)prompt);
                 continue;
             }
             
             if (0 == strcmp(receivedCommand, "help")) 
             {
-                sh_print(handle, "Available commands: help, reset, status, clear\r\n");
+                sh_print(handle, "⟹ Available commands: help, reset, status, clear\r\n");
             } 
             else if (0 == strcmp(receivedCommand, "reset")) 
             {
-                sh_print(handle, "System reset not implemented yet.\r\n");
+                sh_print(handle, "⟹ System reset not implemented yet.\r\n");
             } 
             else if (0 == strcmp(receivedCommand, "status")) 
             {
-                sh_print(handle, "System is running.\r\n");
+                sh_print(handle, "⟹ System is running.\r\n");
             }
             else if (0 == strcmp(receivedCommand, "clear")) 
             {
-                sh_print(handle, "\033[2J\033[H");
+                sh_print(handle, "⟹ \033[2J\033[H");
             }
             else 
             {
                 char str[256];
-                sprintf(str, "Unknown command: %s\r\n", receivedCommand);
+                sprintf(str, "⟹ Unknown command: %s\r\n", receivedCommand);
                 sh_print(handle, str);
             }
             
-            sh_print(handle, "> ");
+            sh_print(handle, (const char*)prompt);
         }
     }
 }
@@ -110,7 +109,7 @@ void vUartTask(void *pvParameters)
     uint16_t index = 0;
     uint8_t ch;
     
-    sh_print(handle, "> ");
+    sh_print(handle, (const char*)prompt);
 
     while (1) 
     {
@@ -136,6 +135,10 @@ void vUartTask(void *pvParameters)
                     input[index] = '\0';
                     xQueueSend(handle->queue, input, portMAX_DELAY);
                     index = 0;
+                }
+                else
+                {
+                    xQueueSend(handle->queue, "", portMAX_DELAY);
                 }
                 continue;
             }

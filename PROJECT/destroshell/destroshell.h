@@ -6,11 +6,15 @@
 #include "task.h"
 #include "stm32f4xx_hal.h"
 #include <stdint.h>
+#include <string.h>
 
 /* Configuration constants */
 #define SHELL_MAX_COMMANDS 4
 #define SHELL_QUEUE_LENGTH 10
 #define SHELL_QUEUE_ITEM_SIZE 256
+
+/* Some character string definitions*/
+static const char *prompt = "[root@root ~]# ";
 
 /*
  * Configuration structure for Shell
