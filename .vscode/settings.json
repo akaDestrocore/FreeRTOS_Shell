@@ -7,6 +7,13 @@
         "destroshell.h": "c",
         "main.h": "c",
         "string.h": "c",
-        "queue.h": "c"
+        "queue.h": "c",
+        "type_traits": "c",
+        "ring_buffer.h": "c",
+        "stdio.h": "c",
+        "stdbool.h": "c",
+        "stdint.h": "c",
+        "shell_cmd.h": "c",
+        "timers.h": "c"
     }
 }

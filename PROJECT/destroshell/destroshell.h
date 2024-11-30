@@ -1,16 +1,23 @@
 #ifndef __DESTROSHELL_H__
 #define __DESTROSHELL_H__
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "task.h"
 #include "stm32f4xx_hal.h"
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 
 /* Configuration constants */
-#define SHELL_MAX_COMMANDS 4
-#define SHELL_QUEUE_LENGTH 10
+#define SHELL_MAX_COMMANDS 100
+#define SHELL_QUEUE_LENGTH 256
 #define SHELL_QUEUE_ITEM_SIZE 256
 
 /* Some character string definitions*/
@@ -28,15 +35,18 @@ typedef struct {
  * Shell command structure
  */
 typedef struct {
-    const char *commandName;      /* Command name */
+    const char *commandName;                // Название команды
+    void (*commandHandler)(Shell_Handle_t*); // Указатель на функцию-обработчик команды
 } ShellCommand_t;
 
-/*
- * API prototypes
- */
+/* API prototypes */
 void Shell_Init(Shell_Handle_t *handle, UART_HandleTypeDef *huart);
 void Shell_Task(void *pvParameters);
 void vUartTask(void *pvParameters);
 void sh_print(Shell_Handle_t *handle, const char *str);
+void Shell_RegisterCommand(const char *name, void (*handler)(Shell_Handle_t *));
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* __DESTROSHELL_H__ */

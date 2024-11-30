@@ -1,12 +1,12 @@
 #include <destroshell.h>
-#include <string.h>
-#include <stdio.h>
 
 /* Private variables ----------------------------------------------------------*/
 static Shell_Handle_t *globalShellHandle = NULL;
+static ShellCommand_t shellCommands[SHELL_MAX_COMMANDS];
+static uint8_t commandCount = 0;
 
 /**
-  * @brief  Shell initialization
+  * @brief  shell initialization
   * @param handle shell handle
   * @param huart UART handle
   * @retval None
@@ -22,7 +22,7 @@ void Shell_Init(Shell_Handle_t *handle, UART_HandleTypeDef *huart)
         sh_print(handle, "Shell queue creation failed.\r\n");
         return;
     }
-    sh_print(handle, "\r\n>>> destroshell v1.0 <<<\r\n");
+    sh_print(handle, "\r\n➩ ➩ ➩ destroshell v1.0 🢤 🢤 🢤\r\n");
     sh_print(handle, "Type 'help' to see available commands\r\n");
 }
 
@@ -37,6 +37,26 @@ void sh_print(Shell_Handle_t *handle, const char *str)
     if ((NULL != handle) && (NULL != handle->huart) && (0 != str)) 
     {
         HAL_UART_Transmit(handle->huart, (uint8_t*)str, strlen(str), HAL_MAX_DELAY);
+    }
+}
+
+/**
+  * @brief  register a new command in the shell
+  * @param name command name
+  * @param handler command handler function
+  * @retval None
+  */
+void Shell_RegisterCommand(const char *name, void (*handler)(Shell_Handle_t *)) 
+{
+    if (commandCount < SHELL_MAX_COMMANDS) 
+    {
+        shellCommands[commandCount].commandName = name;
+        shellCommands[commandCount].commandHandler = handler;
+        commandCount++;
+    } 
+    else 
+    {
+        sh_print(globalShellHandle, "Cannot register more commands. Limit reached.\r\n");
     }
 }
 
@@ -66,30 +86,23 @@ void Shell_Task(void *pvParameters)
                 sh_print(handle, (const char*)prompt);
                 continue;
             }
-            
-            if (0 == strcmp(receivedCommand, "help")) 
-            {
-                sh_print(handle, "⟹ Available commands: help, reset, status, clear\r\n");
-            } 
-            else if (0 == strcmp(receivedCommand, "reset")) 
-            {
-                sh_print(handle, "⟹ System reset not implemented yet.\r\n");
-            } 
-            else if (0 == strcmp(receivedCommand, "status")) 
-            {
-                sh_print(handle, "⟹ System is running.\r\n");
+
+            bool commandFound = false;
+            for (uint8_t i = 0; i < commandCount; i++) {
+                if (strcmp(receivedCommand, shellCommands[i].commandName) == 0) {
+                    shellCommands[i].commandHandler(handle);
+                    commandFound = true;
+                    break;
+                }
             }
-            else if (0 == strcmp(receivedCommand, "clear")) 
-            {
-                sh_print(handle, "⟹ \033[2J\033[H");
-            }
-            else 
+
+            if (false == commandFound) 
             {
                 char str[256];
-                sprintf(str, "⟹ Unknown command: %s\r\n", receivedCommand);
+                sprintf(str, "➩ Unknown command: %s\r\n", receivedCommand);
                 sh_print(handle, str);
             }
-            
+
             sh_print(handle, (const char*)prompt);
         }
     }
@@ -97,8 +110,8 @@ void Shell_Task(void *pvParameters)
 
 /**
   * @brief  main UART task
-  * @param pvParameters A value that is passed as the paramater to the created task. 
-  * If pvParameters is set to the address of a variable then the variable must still exist when 
+  * @param pvParameters A value that is passed as the paramater to the created task.
+  * If pvParameters is set to the address of a variable then the variable must still exist when
   * the created task executes - so it is not valid to pass the address of a stack variable.
   * @retval None
   */
@@ -122,7 +135,7 @@ void vUartTask(void *pvParameters)
                 if (index > 0) 
                 {
                     index--;
-                    sh_print(handle, " \b"); 
+                    sh_print(handle, "\b \b");
                 }
                 continue;
             }

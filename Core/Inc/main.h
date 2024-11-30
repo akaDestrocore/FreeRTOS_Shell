@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2024 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -32,7 +31,10 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
+#include <destroshell.h>
+#include <shell_cmd.h>
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -58,29 +60,19 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define PH0_OSC_IN_Pin GPIO_PIN_0
-#define PH0_OSC_IN_GPIO_Port GPIOH
-#define PH1_OSC_OUT_Pin GPIO_PIN_1
-#define PH1_OSC_OUT_GPIO_Port GPIOH
-#define B1_Pin GPIO_PIN_0
-#define B1_GPIO_Port GPIOA
-#define B1_EXTI_IRQn EXTI0_IRQn
-#define LD4_Pin GPIO_PIN_12
-#define LD4_GPIO_Port GPIOD
-#define LD3_Pin GPIO_PIN_13
-#define LD3_GPIO_Port GPIOD
-#define LD5_Pin GPIO_PIN_14
-#define LD5_GPIO_Port GPIOD
-#define LD6_Pin GPIO_PIN_15
-#define LD6_GPIO_Port GPIOD
+#define USR_BTN_Pin GPIO_PIN_0
+#define USR_BTN_GPIO_Port GPIOA
+#define USR_BTN_EXTI_IRQn EXTI0_IRQn
+#define GREEN_Pin GPIO_PIN_12
+#define GREEN_GPIO_Port GPIOD
+#define ORANGE_Pin GPIO_PIN_13
+#define ORANGE_GPIO_Port GPIOD
+#define RED_Pin GPIO_PIN_14
+#define RED_GPIO_Port GPIOD
+#define BLUE_Pin GPIO_PIN_15
+#define BLUE_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
-
-#define LED_GREEN_PIN		LD4_Pin
-#define LED_ORANGE_PIN		LD3_Pin
-#define LED_RED_PIN			LD5_Pin
-
-void button_interrupt_handler(void);
 
 /* USER CODE END Private defines */
 
