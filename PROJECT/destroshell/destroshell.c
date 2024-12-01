@@ -2,8 +2,8 @@
 
 /* Private variables ----------------------------------------------------------*/
 static Shell_Handle_t *globalShellHandle = NULL;
-static ShellCommand_t shellCommands[SHELL_MAX_COMMANDS];
-static uint8_t commandCount = 0;
+ShellCommand_t shellCommands[SHELL_MAX_COMMANDS];
+uint8_t commandCount = 0;
 
 /**
   * @brief  shell initialization
@@ -27,6 +27,27 @@ void Shell_Init(Shell_Handle_t *handle, UART_HandleTypeDef *huart)
 }
 
 /**
+  * @brief  helper function to parse user input arguments
+  * @param cmd command string with arguments
+  * @param argc argument count
+  * @param argv argument vector
+  * @retval None
+  */
+void Shell_ParseArgs(char *cmd, int *argc, char *argv[]) 
+{
+    *argc = 0;
+    char *token = strtok(cmd, " ");
+    
+    while (token != NULL && *argc < SHELL_MAX_ARGS) 
+    {
+        strncpy(argv[*argc], token, SHELL_MAX_ARG_LEN - 1);
+        argv[*argc][SHELL_MAX_ARG_LEN - 1] = '\0';
+        (*argc)++;
+        token = strtok(NULL, " ");
+    }
+}
+
+/**
   * @brief  shell print function
   * @param handle shell handle
   * @param str character array
@@ -43,14 +64,17 @@ void sh_print(Shell_Handle_t *handle, const char *str)
 /**
   * @brief  register a new command in the shell
   * @param name command name
+  * @param description command description character array
   * @param handler command handler function
   * @retval None
   */
-void Shell_RegisterCommand(const char *name, void (*handler)(Shell_Handle_t *)) 
+void Shell_RegisterCommand(const char *name, const char *description,
+                         void (*handler)(Shell_Handle_t*, int argc, char *argv[])) 
 {
     if (commandCount < SHELL_MAX_COMMANDS) 
     {
         shellCommands[commandCount].commandName = name;
+        shellCommands[commandCount].description = description;
         shellCommands[commandCount].commandHandler = handler;
         commandCount++;
     } 
@@ -71,33 +95,37 @@ void Shell_Task(void *pvParameters)
 {
     Shell_Handle_t *handle = (Shell_Handle_t *)pvParameters;
     char receivedCommand[SHELL_QUEUE_ITEM_SIZE];
+    int argc;
+    char argv[SHELL_MAX_ARGS][SHELL_MAX_ARG_LEN];
+    char *argvPtr[SHELL_MAX_ARGS];
 
-    if ((NULL == handle) || (NULL == handle->queue)) 
-    {
+    for (int i = 0; i < SHELL_MAX_ARGS; i++) {
+        argvPtr[i] = argv[i];
+    }
+
+    if ((NULL == handle) || (NULL == handle->queue)) {
         return;
     }
 
-    while (1) 
-    {
-        if (pdPASS == xQueueReceive(handle->queue, receivedCommand, portMAX_DELAY)) 
-        {
-            if (0 == strlen(receivedCommand)) 
-            {
+    while (1) {
+        if (pdPASS == xQueueReceive(handle->queue, receivedCommand, portMAX_DELAY)) {
+            if (strlen(receivedCommand) == 0) {
                 sh_print(handle, (const char*)prompt);
                 continue;
             }
 
+            Shell_ParseArgs(receivedCommand, &argc, argvPtr);
             bool commandFound = false;
+
             for (uint8_t i = 0; i < commandCount; i++) {
-                if (strcmp(receivedCommand, shellCommands[i].commandName) == 0) {
-                    shellCommands[i].commandHandler(handle);
+                if (strcmp(argvPtr[0], shellCommands[i].commandName) == 0) {
+                    shellCommands[i].commandHandler(handle, argc, argvPtr);
                     commandFound = true;
                     break;
                 }
             }
 
-            if (false == commandFound) 
-            {
+            if (!commandFound) {
                 char str[256];
                 sprintf(str, "➩ Unknown command: %s\r\n", receivedCommand);
                 sh_print(handle, str);

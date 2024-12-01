@@ -105,11 +105,11 @@ int main(void)
   xTaskCreate(Shell_Task, "Shell", 512, &shellHandle, 1, NULL);
   xTaskCreate(vUartTask, "UART", 512, &shellHandle, 1, NULL);
 
-  Shell_RegisterCommand("clear", shell_cmd_clear);
-  Shell_RegisterCommand("help", shell_cmd_help);
-  Shell_RegisterCommand("status", shell_cmd_status);
-  Shell_RegisterCommand("reset", shell_cmd_reset);
-  Shell_RegisterCommand("cancel reset", shell_cmd_reset_cancel);
+  Shell_RegisterCommand("clear", "Clear the terminal screen", shell_cmd_clear);
+  Shell_RegisterCommand("help", "Display help information for commands", shell_cmd_help);
+  Shell_RegisterCommand("status", "Show system status information", shell_cmd_status);
+  Shell_RegisterCommand("reset", "Reset the system", shell_cmd_reset);
+  Shell_RegisterCommand("cancel", "Cancel pending reset", shell_cmd_reset_cancel);
 
 
   //start the freeRTOS scheduler
