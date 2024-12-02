@@ -6,22 +6,46 @@ ShellCommand_t shellCommands[SHELL_MAX_COMMANDS];
 uint8_t commandCount = 0;
 
 /**
+  * @brief  reset timer callback
+  * @param xTimer timer handle
+  * @retval None
+  */
+static void vResetTimerCallback(TimerHandle_t xTimer) 
+{
+    Shell_Handle_t *handle = (Shell_Handle_t *)pvTimerGetTimerID(xTimer);
+    if (handle->resetPending) 
+    {
+        NVIC_SystemReset();
+    }
+}
+
+/**
   * @brief  shell initialization
   * @param handle shell handle
   * @param huart UART handle
   * @retval None
   */
-void Shell_Init(Shell_Handle_t *handle, UART_HandleTypeDef *huart)
+void Shell_Init(Shell_Handle_t *handle, UART_HandleTypeDef *huart) 
 {
     handle->huart = huart;
     handle->queue = xQueueCreate(SHELL_QUEUE_LENGTH, SHELL_QUEUE_ITEM_SIZE);
-    globalShellHandle = handle;  
+    handle->bufferIndex = 0;
+    handle->resetPending = false;
+    globalShellHandle = handle;
+
+    // Create reset timer
+    handle->resetTimer = xTimerCreate("ResetTimer", 
+                                    pdMS_TO_TICKS(60000),  // 60 second delay
+                                    pdFALSE,                
+                                    (void*)handle,        // Timer ID
+                                    vResetTimerCallback);
 
     if (NULL == handle->queue) 
     {
         sh_print(handle, "Shell queue creation failed.\r\n");
         return;
     }
+    
     sh_print(handle, "\r\n➩ ➩ ➩ destroshell v1.0 🢤 🢤 🢤\r\n");
     sh_print(handle, "Type 'help' to see available commands\r\n");
 }
@@ -68,13 +92,13 @@ void sh_print(Shell_Handle_t *handle, const char *str)
   * @param handler command handler function
   * @retval None
   */
-void Shell_RegisterCommand(const char *name, const char *description,
-                         void (*handler)(Shell_Handle_t*, int argc, char *argv[])) 
+void Shell_RegisterCommand(const char *name, const char *description, const char *usage, void (*handler)(Shell_Handle_t*, int argc, char *argv[])) 
 {
     if (commandCount < SHELL_MAX_COMMANDS) 
     {
         shellCommands[commandCount].commandName = name;
         shellCommands[commandCount].description = description;
+        shellCommands[commandCount].usage = usage;
         shellCommands[commandCount].commandHandler = handler;
         commandCount++;
     } 
@@ -99,17 +123,22 @@ void Shell_Task(void *pvParameters)
     char argv[SHELL_MAX_ARGS][SHELL_MAX_ARG_LEN];
     char *argvPtr[SHELL_MAX_ARGS];
 
-    for (int i = 0; i < SHELL_MAX_ARGS; i++) {
+    for (int i = 0; i < SHELL_MAX_ARGS; i++) 
+    {
         argvPtr[i] = argv[i];
     }
 
-    if ((NULL == handle) || (NULL == handle->queue)) {
+    if ((NULL == handle) || (NULL == handle->queue)) 
+    {
         return;
     }
 
-    while (1) {
-        if (pdPASS == xQueueReceive(handle->queue, receivedCommand, portMAX_DELAY)) {
-            if (strlen(receivedCommand) == 0) {
+    while (1) 
+    {
+        if (pdPASS == xQueueReceive(handle->queue, receivedCommand, portMAX_DELAY)) 
+        {
+            if (strlen(receivedCommand) == 0) 
+            {
                 sh_print(handle, (const char*)prompt);
                 continue;
             }
@@ -117,20 +146,22 @@ void Shell_Task(void *pvParameters)
             Shell_ParseArgs(receivedCommand, &argc, argvPtr);
             bool commandFound = false;
 
-            for (uint8_t i = 0; i < commandCount; i++) {
-                if (strcmp(argvPtr[0], shellCommands[i].commandName) == 0) {
+            for (uint8_t i = 0; i < commandCount; i++) 
+            {
+                if (strcmp(argvPtr[0], shellCommands[i].commandName) == 0) 
+                {
                     shellCommands[i].commandHandler(handle, argc, argvPtr);
                     commandFound = true;
                     break;
                 }
             }
 
-            if (!commandFound) {
+            if (!commandFound) 
+            {
                 char str[256];
                 sprintf(str, "➩ Unknown command: %s\r\n", receivedCommand);
                 sh_print(handle, str);
             }
-
             sh_print(handle, (const char*)prompt);
         }
     }
@@ -146,8 +177,6 @@ void Shell_Task(void *pvParameters)
 void vUartTask(void *pvParameters) 
 {
     Shell_Handle_t *handle = (Shell_Handle_t *)pvParameters;
-    char input[SHELL_QUEUE_LENGTH];
-    uint16_t index = 0;
     uint8_t ch;
     
     sh_print(handle, (const char*)prompt);
@@ -160,9 +189,9 @@ void vUartTask(void *pvParameters)
             
             if (ch == '\b' || ch == 0x7F) 
             {
-                if (index > 0) 
+                if (handle->bufferIndex > 0) 
                 {
-                    index--;
+                    handle->bufferIndex--;
                     sh_print(handle, "\b \b");
                 }
                 continue;
@@ -171,13 +200,13 @@ void vUartTask(void *pvParameters)
             if (ch == '\r') 
             {
                 sh_print(handle, "\n");
-                if (index > 0) 
+                if (handle->bufferIndex > 0) 
                 {
-                    input[index] = '\0';
-                    xQueueSend(handle->queue, input, portMAX_DELAY);
-                    index = 0;
-                }
-                else
+                    handle->cmdBuffer[handle->bufferIndex] = '\0';
+                    xQueueSend(handle->queue, handle->cmdBuffer, portMAX_DELAY);
+                    handle->bufferIndex = 0;
+                } 
+                else 
                 {
                     xQueueSend(handle->queue, "", portMAX_DELAY);
                 }
@@ -189,9 +218,9 @@ void vUartTask(void *pvParameters)
                 continue;
             }
             
-            if (index < SHELL_QUEUE_LENGTH - 1 && ch >= 32 && ch <= 126) 
+            if (handle->bufferIndex < SHELL_QUEUE_LENGTH - 1 && ch >= 32 && ch <= 126) 
             {
-                input[index++] = ch;
+                handle->cmdBuffer[handle->bufferIndex++] = ch;
             }
         }
     }

@@ -105,11 +105,15 @@ int main(void)
   xTaskCreate(Shell_Task, "Shell", 512, &shellHandle, 1, NULL);
   xTaskCreate(vUartTask, "UART", 512, &shellHandle, 1, NULL);
 
-  Shell_RegisterCommand("clear", "Clear the terminal screen", shell_cmd_clear);
-  Shell_RegisterCommand("help", "Display help information for commands", shell_cmd_help);
-  Shell_RegisterCommand("status", "Show system status information", shell_cmd_status);
-  Shell_RegisterCommand("reset", "Reset the system", shell_cmd_reset);
-  Shell_RegisterCommand("cancel", "Cancel pending reset", shell_cmd_reset_cancel);
+  Shell_RegisterCommand("clear", "Clear the terminal screen", "clear", shell_cmd_clear);
+  Shell_RegisterCommand("help", "Display help information for commands", "help [command]", shell_cmd_help);
+  Shell_RegisterCommand("status", "Show system status information", "status", shell_cmd_status);
+  Shell_RegisterCommand("reset", "Reset the system", "reset", shell_cmd_reset);
+  Shell_RegisterCommand("cancel", "Cancel pending reset", "cancel reset", shell_cmd_reset_cancel);
+  Shell_RegisterCommand("pin", "Control GPIO pins", "pin <set/reset/read/toggle> <port: A, B, etc.> <pin_number>", shell_cmd_pin);
+  Shell_RegisterCommand("tasks", "Manage system tasks", "tasks list | tasks info <task_name>", shell_cmd_tasks);
+  Shell_RegisterCommand("heap", "Show heap memory information", "heap", shell_cmd_heap);
+  Shell_RegisterCommand("stack", "Show stack usage for all tasks", "stack", shell_cmd_stack);
 
 
   //start the freeRTOS scheduler

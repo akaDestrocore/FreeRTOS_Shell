@@ -44,6 +44,7 @@ typedef struct {
 typedef struct {
     const char *commandName;
     const char *description;
+    const char *usage;
     void (*commandHandler)(Shell_Handle_t*, int argc, char *argv[]);
 } ShellCommand_t;
 
@@ -51,8 +52,9 @@ typedef struct {
 void Shell_Init(Shell_Handle_t *handle, UART_HandleTypeDef *huart);
 void Shell_Task(void *pvParameters);
 void vUartTask(void *pvParameters);
+void Shell_ParseArgs(char *cmd, int *argc, char *argv[]);
 void sh_print(Shell_Handle_t *handle, const char *str);
-void Shell_RegisterCommand(const char *name, const char *description, void (*handler)(Shell_Handle_t*, int argc, char *argv[]));
+void Shell_RegisterCommand(const char *name, const char *description, const char *usage, void (*handler)(Shell_Handle_t*, int argc, char *argv[]));
 
 #ifdef __cplusplus
 }
