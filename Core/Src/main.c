@@ -114,6 +114,7 @@ int main(void)
   Shell_RegisterCommand("tasks", "Manage system tasks", "tasks list | tasks info <task_name>", shell_cmd_tasks);
   Shell_RegisterCommand("heap", "Show heap memory information", "heap", shell_cmd_heap);
   Shell_RegisterCommand("stack", "Show stack usage for all tasks", "stack", shell_cmd_stack);
+  Shell_RegisterCommand("init", "Initialize peripheral", "init", shell_cmd_init);
 
 
   //start the freeRTOS scheduler

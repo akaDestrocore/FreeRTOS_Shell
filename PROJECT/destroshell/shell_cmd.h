@@ -13,6 +13,41 @@ extern "C"
 extern uint8_t commandCount;
 extern ShellCommand_t shellCommands[];
 
+/* Shell arguments */
+typedef struct {
+    const char* flag;
+    const char* value;
+} ShellArg_t;
+
+typedef struct {
+    UART_HandleTypeDef handle;
+    USART_TypeDef* instance;
+    bool initialized;
+} UART_Config_t;
+
+typedef struct {
+    I2C_HandleTypeDef handle;
+    I2C_TypeDef* instance;
+    bool initialized;
+} I2C_Config_t;
+
+typedef struct {
+    SPI_HandleTypeDef handle;
+    SPI_TypeDef* instance;
+    bool initialized;
+} SPI_Config_t;
+
+typedef struct {
+    TIM_HandleTypeDef handle;
+    TIM_TypeDef* instance;
+    bool initialized;
+} TIM_Config_t;
+
+typedef struct {
+    RTC_HandleTypeDef handle;
+    bool initialized;
+} RTC_Config_t;
+
 /* API prototypes */
 void shell_cmd_clear(Shell_Handle_t *handle, int argc, char *argv[]);
 void shell_cmd_help(Shell_Handle_t *handle, int argc, char *argv[]);
@@ -23,10 +58,7 @@ void shell_cmd_tasks(Shell_Handle_t *handle, int argc, char *argv[]);
 void shell_cmd_heap(Shell_Handle_t *handle, int argc, char *argv[]);
 void shell_cmd_stack(Shell_Handle_t *handle, int argc, char *argv[]);
 void shell_cmd_pin(Shell_Handle_t *handle, int argc, char *argv[]);
-
-/* Helper functions */
-GPIO_TypeDef* get_gpio_port(const char *port_str);
-uint16_t get_gpio_pin(const char *pin_str);
+void shell_cmd_init(Shell_Handle_t *handle, int argc, char *argv[]);
 
 #ifdef __cplusplus
 }

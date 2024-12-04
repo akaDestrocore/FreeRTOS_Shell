@@ -13,7 +13,7 @@ uint8_t commandCount = 0;
 static void vResetTimerCallback(TimerHandle_t xTimer) 
 {
     Shell_Handle_t *handle = (Shell_Handle_t *)pvTimerGetTimerID(xTimer);
-    if (handle->resetPending) 
+    if (SET == handle->resetPending) 
     {
         NVIC_SystemReset();
     }
@@ -137,7 +137,7 @@ void Shell_Task(void *pvParameters)
     {
         if (pdPASS == xQueueReceive(handle->queue, receivedCommand, portMAX_DELAY)) 
         {
-            if (strlen(receivedCommand) == 0) 
+            if (0 == strlen(receivedCommand)) 
             {
                 sh_print(handle, (const char*)prompt);
                 continue;
@@ -148,7 +148,7 @@ void Shell_Task(void *pvParameters)
 
             for (uint8_t i = 0; i < commandCount; i++) 
             {
-                if (strcmp(argvPtr[0], shellCommands[i].commandName) == 0) 
+                if (0 == strcmp(argvPtr[0], shellCommands[i].commandName)) 
                 {
                     shellCommands[i].commandHandler(handle, argc, argvPtr);
                     commandFound = true;
@@ -156,7 +156,7 @@ void Shell_Task(void *pvParameters)
                 }
             }
 
-            if (!commandFound) 
+            if (RESET == commandFound) 
             {
                 char str[256];
                 sprintf(str, "➩ Unknown command: %s\r\n", receivedCommand);
@@ -197,7 +197,7 @@ void vUartTask(void *pvParameters)
                 continue;
             }
             
-            if (ch == '\r') 
+            if ('\r' == ch) 
             {
                 sh_print(handle, "\n");
                 if (handle->bufferIndex > 0) 
@@ -213,7 +213,7 @@ void vUartTask(void *pvParameters)
                 continue;
             }
             
-            if (ch == '\n') 
+            if ('\n' == ch) 
             {
                 continue;
             }
