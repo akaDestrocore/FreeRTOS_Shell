@@ -8,6 +8,9 @@ static GPIO_TypeDef* get_gpio_port(const char *port_str);
 static int parse_args(int argc, char *argv[], int start_idx, ShellArg_t *args, int max_args);
 static const char* get_arg_value(ShellArg_t *args, int arg_count, const char *flag, const char *default_value);
 static USART_TypeDef* get_usart_base(const char* uart_name);
+static I2C_TypeDef* get_i2c_base(const char* i2c_name) ;
+static SPI_TypeDef* get_spi_base(const char* spi_name); 
+static TIM_TypeDef* get_timer_base(const char* timer_name);
 static void init_uart(Shell_Handle_t *handle, const char* peripheral_name, ShellArg_t *args, int arg_count);
 static void init_spi(Shell_Handle_t *handle, const char* peripheral_name, ShellArg_t *args, int arg_count);
 static void init_i2c(Shell_Handle_t *handle, const char* peripheral_name, ShellArg_t *args, int arg_count);
@@ -75,7 +78,7 @@ void shell_cmd_help(Shell_Handle_t *handle, int argc, char *argv[])
   */
 void shell_cmd_status(Shell_Handle_t *handle, int argc, char *argv[]) 
 {
-    sh_print(handle, "⟹ System is running.\r\n");
+   sh_print(handle, "⟹ System is running.\r\n");
 }
 
 /**
@@ -274,13 +277,14 @@ void shell_cmd_pin(Shell_Handle_t *handle, int argc, char *argv[])
 
     GPIO_TypeDef *port = get_gpio_port(argv[2]);
 
-    uint16_t pin = atoi(argv[3]);
+    int pin_number = atoi(argv[3]);
+    uint16_t pin;
     
-    if (pin >= 0 && pin <= 15) 
+    if (pin_number >= 0 && pin_number <= 15) 
     {
-        1 << pin;
+        pin = 1 << pin_number; 
     }
-    
+
     if (0 == port || 0 == pin) 
     {
         sh_print(handle, "Invalid port or pin\r\n");
@@ -605,16 +609,9 @@ static void init_spi(Shell_Handle_t *handle, const char* peripheral_name, ShellA
                                   (strcmp(baudr_psc_str, "64") == 0) ? SPI_BAUDRATEPRESCALER_64 : 
                                   (strcmp(baudr_psc_str, "128") == 0) ? SPI_BAUDRATEPRESCALER_128 : SPI_BAUDRATEPRESCALER_256;
     hspi.Init.FirstBit = (strcmp(firstbit_str, "msb") == 0) ? SPI_FIRSTBIT_MSB : SPI_FIRSTBIT_LSB;
-    hspi.Init.TIMode = (strcmp(timode_str, "disable") == 0) ? SPI_TIMODE_DISABLE : SPI_TIMODE_ENABLE;
-    hspi.Init.CRCCalculation = (strcmp(crccalc_str, "disable") == 0) ? SPI_CRCCALCULATION_DISABLE : SPI_CRCCALCULATION_ENABLE;
-    int crc_poly = atoi(crcpoly_str);
-    if (crc_poly <= 0) 
-    {
-        crc_poly = 10;
-        sprintf(buf, "Invalid CRC polynomial value: %s, using default (10)\r\n", crcpoly_str);
-        sh_print(handle, buf);
-    }
-    hspi.Init.CRCPolynomial = crc_poly;
+    hspi.Init.TIMode = (strcmp(timode_str, "enable") == 0) ? SPI_TIMODE_ENABLE : SPI_TIMODE_DISABLE;
+    hspi.Init.CRCCalculation = (strcmp(crccalc_str, "enable") == 0) ? SPI_CRCCALCULATION_ENABLE : SPI_CRCCALCULATION_DISABLE;
+    hspi.Init.CRCPolynomial = atoi(crcpoly_str);
 
     if (HAL_OK != HAL_SPI_Init(&hspi)) 
     {
@@ -636,7 +633,90 @@ static void init_spi(Shell_Handle_t *handle, const char* peripheral_name, ShellA
   */
 static void init_i2c(Shell_Handle_t *handle, const char* peripheral_name, ShellArg_t *args, int arg_count) 
 {
-    // Implement I2C initialization logic here
+    char buf[256];
+    I2C_TypeDef* i2c_base = get_i2c_base(peripheral_name);
+    if (NULL == i2c_base) 
+    {
+        sprintf(buf, "Invalid I2C instance: %s\r\n", peripheral_name);
+        sh_print(handle, buf);
+        return;
+    }
+
+    // Enable GPIO and I2C clocks
+    if (i2c_base == I2C1) 
+    {
+        __HAL_RCC_I2C1_CLK_ENABLE();
+        __HAL_RCC_GPIOB_CLK_ENABLE(); // PB6/PB7
+    } 
+    else if (i2c_base == I2C2) 
+    {
+        __HAL_RCC_I2C2_CLK_ENABLE();
+        __HAL_RCC_GPIOB_CLK_ENABLE(); // PB10/PB11
+    }
+    else if (i2c_base == I2C3) 
+    {
+        __HAL_RCC_I2C3_CLK_ENABLE();
+        __HAL_RCC_GPIOA_CLK_ENABLE(); // PA8
+        __HAL_RCC_GPIOC_CLK_ENABLE(); //PC9
+    }
+    
+    
+    // Get parameters with defaults
+    const char* clkspeed_str = get_arg_value(args, arg_count, "clkspeed", "100000");
+    const char* dc_str = get_arg_value(args, arg_count, "dc", "2");
+    const char* ownaddr1_str = get_arg_value(args, arg_count, "ownaddr1", "0");
+    const char* addrmode_str = get_arg_value(args, arg_count, "addrmode", "7");
+    const char* dual_str = get_arg_value(args, arg_count, "dual", "disable");
+    const char* ownaddr2_str = get_arg_value(args, arg_count, "ownaddr2", "0");
+    const char* engc_str = get_arg_value(args, arg_count, "engc", "disable");
+    const char* nostrech_str = get_arg_value(args, arg_count, "nostrech", "disable");
+
+    // Configure GPIO
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    
+    if (i2c_base == I2C1) 
+    {
+        GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
+        GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    }
+    else if (i2c_base == I2C2) 
+    {
+        GPIO_InitStruct.Alternate = GPIO_AF4_I2C2;
+        GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
+        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    }
+    else if (i2c_base == I2C3) 
+    {
+        GPIO_InitStruct.Alternate = GPIO_AF7_USART3;
+        GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_11;
+        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    }
+
+    // Initialize I2C
+    I2C_HandleTypeDef hi2c = {0};
+    hi2c.Instance = i2c_base;
+    hi2c.Init.ClockSpeed = atoi(clkspeed_str);
+    hi2c.Init.DutyCycle = (strcmp(dc_str, "2") == 0) ? I2C_DUTYCYCLE_2 : I2C_DUTYCYCLE_16_9;
+    hi2c.Init.OwnAddress1 = atoi(ownaddr1_str);
+    hi2c.Init.AddressingMode = (strcmp(addrmode_str, "7") == 0) ? I2C_ADDRESSINGMODE_7BIT : I2C_ADDRESSINGMODE_10BIT;
+    hi2c.Init.DualAddressMode = (strcmp(dual_str, "enable") == 0) ? I2C_DUALADDRESS_ENABLE : I2C_DUALADDRESS_DISABLE;
+    hi2c.Init.OwnAddress2 = atoi(ownaddr2_str);
+    hi2c.Init.GeneralCallMode = (strcmp(engc_str, "enable") == 0) ? I2C_GENERALCALL_ENABLE : I2C_GENERALCALL_DISABLE;
+    hi2c.Init.NoStretchMode = (strcmp(nostrech_str, "enable") == 0) ? I2C_NOSTRETCH_ENABLE : I2C_NOSTRETCH_DISABLE;
+
+    if (HAL_OK != HAL_I2C_Init(&hi2c)) 
+    {
+        sprintf(buf, "Failed to initialize %s\r\n", peripheral_name);
+        sh_print(handle, buf);
+        return;
+    }
+
+    sprintf(buf, "%s initialized successfully\r\n", peripheral_name);
+    sh_print(handle, buf);
 }
 
 /**
@@ -648,7 +728,71 @@ static void init_i2c(Shell_Handle_t *handle, const char* peripheral_name, ShellA
   */
 static void init_timer(Shell_Handle_t *handle, const char* peripheral_name, ShellArg_t *args, int arg_count) 
 {
-    // Implement Timer initialization logic here
+    char buf[256];
+    TIM_TypeDef* timer_base = get_timer_base(peripheral_name);
+    if (NULL == timer_base) 
+    {
+        sprintf(buf, "Invalid Timer instance: %s\r\n", peripheral_name);
+        sh_print(handle, buf);
+        return;
+    }
+
+    // Enable Timer clock
+    if (timer_base == TIM1) __HAL_RCC_TIM1_CLK_ENABLE();
+    else if (timer_base == TIM2) __HAL_RCC_TIM2_CLK_ENABLE();
+    else if (timer_base == TIM3) __HAL_RCC_TIM3_CLK_ENABLE();
+    else if (timer_base == TIM4) __HAL_RCC_TIM4_CLK_ENABLE();
+    else if (timer_base == TIM5) __HAL_RCC_TIM5_CLK_ENABLE();
+    else if (timer_base == TIM6) __HAL_RCC_TIM6_CLK_ENABLE();
+    else if (timer_base == TIM7) __HAL_RCC_TIM7_CLK_ENABLE();
+    else if (timer_base == TIM8) __HAL_RCC_TIM8_CLK_ENABLE();
+    else if (timer_base == TIM9) __HAL_RCC_TIM9_CLK_ENABLE();
+    else if (timer_base == TIM10) __HAL_RCC_TIM10_CLK_ENABLE();
+    else if (timer_base == TIM11) __HAL_RCC_TIM11_CLK_ENABLE();
+    else if (timer_base == TIM12) __HAL_RCC_TIM12_CLK_ENABLE();
+    else if (timer_base == TIM13) __HAL_RCC_TIM13_CLK_ENABLE();
+    else if (timer_base == TIM14) __HAL_RCC_TIM14_CLK_ENABLE();
+
+    // Get parameters with defaults
+    const char* period_str = get_arg_value(args, arg_count, "period", "1000");
+    const char* prescaler_str = get_arg_value(args, arg_count, "prescaler", "8400");
+    const char* clockdiv_str = get_arg_value(args, arg_count, "clockdiv", "1");
+    const char* countmode_str = get_arg_value(args, arg_count, "countmode", "up");
+    const char* autoreload_str = get_arg_value(args, arg_count, "autoreload", "enable");
+    const char* repcounter_str = get_arg_value(args, arg_count, "repcounter", "0");
+
+    // Initialize Timer
+    TIM_HandleTypeDef htim = {0};
+    htim.Instance = timer_base;
+    htim.Init.Period = atoi(period_str);
+    htim.Init.Prescaler = atoi(prescaler_str);
+    htim.Init.ClockDivision = (strcmp(clockdiv_str, "1") == 0) ? TIM_CLOCKDIVISION_DIV1 : 
+                              (strcmp(clockdiv_str, "2") == 0) ? TIM_CLOCKDIVISION_DIV2 : TIM_CLOCKDIVISION_DIV4;
+    htim.Init.CounterMode = (strcmp(countmode_str, "up") == 0) ? TIM_COUNTERMODE_UP : 
+                            (strcmp(countmode_str, "down") == 0) ? TIM_COUNTERMODE_DOWN : 
+                            (strcmp(countmode_str, "center1") == 0) ? TIM_COUNTERMODE_CENTERALIGNED1 :
+                            (strcmp(countmode_str, "center2") == 0) ? TIM_COUNTERMODE_CENTERALIGNED2 : 
+                            TIM_COUNTERMODE_CENTERALIGNED3;
+    htim.Init.AutoReloadPreload = (strcmp(autoreload_str, "enable") == 0) ? TIM_AUTORELOAD_PRELOAD_ENABLE : 
+                                  TIM_AUTORELOAD_PRELOAD_DISABLE;
+    htim.Init.RepetitionCounter = atoi(repcounter_str);
+
+    if (HAL_OK != HAL_TIM_Base_Init(&htim)) 
+    {
+        sprintf(buf, "Failed to initialize %s\r\n", peripheral_name);
+        sh_print(handle, buf);
+        return;
+    }
+
+    if (HAL_OK != HAL_TIM_Base_Start(&htim)) 
+    {
+        sprintf(buf, "Failed to start %s\r\n", peripheral_name);
+        sh_print(handle, buf);
+        return;
+    }
+
+    sprintf(buf, "%s initialized successfully\r\n", peripheral_name);
+    sh_print(handle, buf);
 }
 
 /**
@@ -660,7 +804,76 @@ static void init_timer(Shell_Handle_t *handle, const char* peripheral_name, Shel
   */
 static void init_rtc(Shell_Handle_t *handle, ShellArg_t *args, int arg_count) 
 {
-    // Implement RTC initialization logic here
+    char buf[256];
+
+    // Enable PWR Clock
+    __HAL_RCC_PWR_CLK_ENABLE();
+
+    // Enable access to RTC
+    HAL_PWR_EnableBkUpAccess();
+
+    // Get parameters with defaults
+    const char* clock_str = get_arg_value(args, arg_count, "clock", "lse");
+    const char* format_str = get_arg_value(args, arg_count, "format", "24");
+    const char* asyncpre_str = get_arg_value(args, arg_count, "asyncpre", "128");
+    const char* syncpre_str = get_arg_value(args, arg_count, "syncpre", "256");
+
+    // Configure RTC clock source
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+
+    if (strcmp(clock_str, "lse") == 0) 
+    {
+        RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE;
+        RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+        RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+        PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+    } 
+    else if (strcmp(clock_str, "lsi") == 0) 
+    {
+        RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI;
+        RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+        RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+        PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+    } 
+    else if (strcmp(clock_str, "hse") == 0) 
+    {
+        PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV8;
+    }
+
+    if (HAL_OK != HAL_RCC_OscConfig(&RCC_OscInitStruct)) 
+    {
+        sh_print(handle, "Failed to configure RTC clock source\r\n");
+        return;
+    }
+
+    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+    if (HAL_OK != HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct)) 
+    {
+        sh_print(handle, "Failed to configure RTC peripheral clock\r\n");
+        return;
+    }
+
+    // Enable RTC Clock
+    __HAL_RCC_RTC_ENABLE();
+
+    // Initialize RTC
+    RTC_HandleTypeDef hrtc = {0};
+    hrtc.Instance = RTC;
+    hrtc.Init.HourFormat = (strcmp(format_str, "24") == 0) ? RTC_HOURFORMAT_24 : RTC_HOURFORMAT_12;
+    hrtc.Init.AsynchPrediv = atoi(asyncpre_str);
+    hrtc.Init.SynchPrediv = atoi(syncpre_str);
+    hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+    hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+    hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+
+    if (HAL_OK != HAL_RTC_Init(&hrtc)) 
+    {
+        sh_print(handle, "Failed to initialize RTC\r\n");
+        return;
+    }
+
+    sh_print(handle, "RTC initialized successfully\r\n");
 }
 
 /* Helper Functions */
@@ -676,12 +889,47 @@ static GPIO_TypeDef* get_gpio_port(const char *port_str)
 
 static USART_TypeDef* get_usart_base(const char* uart_name) 
 {
-    if (0 == strcmp(uart_name, "UART1") || 0 == strcmp(uart_name, "USART1") || 0 == strcmp(uart_name, "usart1") || 0 == strcmp(uart_name, "uart1")) return USART1;
-    if (0 == strcmp(uart_name, "UART2") || 0 == strcmp(uart_name, "USART2") || 0 == strcmp(uart_name, "usart2") || 0 == strcmp(uart_name, "uart2")) return USART2;
-    if (0 == strcmp(uart_name, "UART3") || 0 == strcmp(uart_name, "USART3") || 0 == strcmp(uart_name, "usart3") || 0 == strcmp(uart_name, "uart3")) return USART3;
-    if (0 == strcmp(uart_name, "UART4") || 0 == strcmp(uart_name, "USART4") || 0 == strcmp(uart_name, "usart4") || 0 == strcmp(uart_name, "uart4")) return UART4;
-    if (0 == strcmp(uart_name, "UART5") || 0 == strcmp(uart_name, "USART5") || 0 == strcmp(uart_name, "usart5") || 0 == strcmp(uart_name, "uart5")) return UART5;
-    if (0 == strcmp(uart_name, "UART6") || 0 == strcmp(uart_name, "USART6") || 0 == strcmp(uart_name, "usart6") || 0 == strcmp(uart_name, "uart6")) return USART6;
+    if (0 == strcmp(uart_name, "USART1") || 0 == strcmp(uart_name, "UART1") || 0 == strcmp(uart_name, "usart1") || 0 == strcmp(uart_name, "uart1")) return USART1;
+    if (0 == strcmp(uart_name, "USART2") || 0 == strcmp(uart_name, "UART2") || 0 == strcmp(uart_name, "usart2") || 0 == strcmp(uart_name, "uart2")) return USART2;
+    if (0 == strcmp(uart_name, "USART3") || 0 == strcmp(uart_name, "UART3") || 0 == strcmp(uart_name, "usart3") || 0 == strcmp(uart_name, "uart3")) return USART3;
+    if (0 == strcmp(uart_name, "USART4") || 0 == strcmp(uart_name, "UART4") || 0 == strcmp(uart_name, "usart4") || 0 == strcmp(uart_name, "uart4")) return UART4;
+    if (0 == strcmp(uart_name, "USART5") || 0 == strcmp(uart_name, "UART5") || 0 == strcmp(uart_name, "usart5") || 0 == strcmp(uart_name, "uart5")) return UART5;
+    if (0 == strcmp(uart_name, "USART6") || 0 == strcmp(uart_name, "UART6") || 0 == strcmp(uart_name, "usart6") || 0 == strcmp(uart_name, "uart6")) return USART6;
+    return NULL;
+}
+
+static I2C_TypeDef* get_i2c_base(const char* i2c_name) 
+{
+    if (0 == strcmp(i2c_name, "i2c1") || 0 == strcmp(i2c_name, "I2C1")) return I2C1;
+    if (0 == strcmp(i2c_name, "i2c2") || 0 == strcmp(i2c_name, "I2C2")) return I2C2;
+    if (0 == strcmp(i2c_name, "i2c3") || 0 == strcmp(i2c_name, "I2C3")) return I2C3;
+    return NULL;
+}
+
+static SPI_TypeDef* get_spi_base(const char* spi_name) 
+{
+    if (0 == strcmp(spi_name, "spi1") || 0 == strcmp(spi_name, "SPI1")) return SPI1;
+    if (0 == strcmp(spi_name, "spi2") || 0 == strcmp(spi_name, "SPI2")) return SPI2;
+    if (0 == strcmp(spi_name, "spi3") || 0 == strcmp(spi_name, "SPI3")) return SPI3;
+    return NULL;
+}
+
+static TIM_TypeDef* get_timer_base(const char* timer_name) 
+{
+    if (0 == strcmp(timer_name, "tim1") || 0 == strcmp(timer_name, "TIM1")) return TIM1;
+    if (0 == strcmp(timer_name, "tim2") || 0 == strcmp(timer_name, "TIM2")) return TIM2;
+    if (0 == strcmp(timer_name, "tim3") || 0 == strcmp(timer_name, "TIM3")) return TIM3;
+    if (0 == strcmp(timer_name, "tim4") || 0 == strcmp(timer_name, "TIM4")) return TIM4;
+    if (0 == strcmp(timer_name, "tim5") || 0 == strcmp(timer_name, "TIM5")) return TIM5;
+    if (0 == strcmp(timer_name, "tim6") || 0 == strcmp(timer_name, "TIM6")) return TIM6;
+    if (0 == strcmp(timer_name, "tim7") || 0 == strcmp(timer_name, "TIM7")) return TIM7;
+    if (0 == strcmp(timer_name, "tim8") || 0 == strcmp(timer_name, "TIM8")) return TIM8;
+    if (0 == strcmp(timer_name, "tim9") || 0 == strcmp(timer_name, "TIM9")) return TIM9;
+    if (0 == strcmp(timer_name, "tim10") || 0 == strcmp(timer_name, "TIM10")) return TIM10;
+    if (0 == strcmp(timer_name, "tim11") || 0 == strcmp(timer_name, "TIM11")) return TIM11;
+    if (0 == strcmp(timer_name, "tim12") || 0 == strcmp(timer_name, "TIM12")) return TIM12;
+    if (0 == strcmp(timer_name, "tim13") || 0 == strcmp(timer_name, "TIM13")) return TIM13;
+    if (0 == strcmp(timer_name, "tim14") || 0 == strcmp(timer_name, "TIM14")) return TIM14;
     return NULL;
 }
 
